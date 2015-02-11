@@ -59,7 +59,7 @@ func tryCreatePath(path string, conn *zk.Conn) {
     flags := int32(0)
     acl := zk.WorldACL(zk.PermAll)
     for i:=1; i<=len(path); i++ {
-        if path[i] == '/' || i == len(path) {
+        if i == len(path) || path[i] == '/' {
             if exists, _, err := conn.Exists(path[:i]); err == nil && !exists {
                 conn.Create(path[:i], []byte(""), flags, acl)
             }
@@ -131,6 +131,7 @@ func init() {
 
 func MarkDead(idx int) {
     Conf.DeadRiemann[idx] = true
+    Conf.DeadLocal[idx] = true
     conn, _, err := zk.Connect(Conf.ZkAddrs, time.Second*10)
     defer conn.Close()
     if err == nil {
