@@ -32,6 +32,7 @@ func handle(conn net.Conn) {
 	n, err := conn.Read(data)
 	if err != nil {
 		plog.Error("read from conn failed:", err)
+		return
 	}
 	message := new(proto.Msg)
 	pb.Unmarshal(data[0:n], message)

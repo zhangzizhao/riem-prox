@@ -33,7 +33,7 @@ func (self *Riemann) markDead() {
 	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
 	defer conn.Close()
 	if err == nil {
-		conn.Create(ZK_PATH+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(0), zk.WorldACL(zk.PermAll))
+		conn.Create(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(0), zk.WorldACL(zk.PermAll))
 	}
 }
 
@@ -46,7 +46,7 @@ func (self *Riemann) markAlive() {
 	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
 	defer conn.Close()
 	if err == nil {
-		conn.Delete(ZK_PATH+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
+		conn.Delete(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
 	}
 }
 

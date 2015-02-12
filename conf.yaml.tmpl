@@ -1,0 +1,13 @@
+listen: 0.0.0.0:11236
+riemannaddrs:
+    - 0.0.0.0:12235
+    - 0.0.0.0:12236
+zkaddrs:
+    - 10.97.27.252:2181
+    - 10.97.27.252:2182
+    - 10.97.27.252:2183
+numinitconn: 10
+nummaxconn: 1000
+zkpath: /services/proxy/riemann/dead
+accesslog: /root/log/riemann-proxy/access.log
+errorlog: /root/log/riemann-proxy/error.log

@@ -12,9 +12,6 @@ import (
 	"time"
 )
 
-const (
-	ZK_PATH = "/services/proxy/riemann/dead"
-)
 
 type Msg struct {
 	msg    *proto.Msg
@@ -39,22 +36,21 @@ var riemann []Riemann
 func init() {
 	riemann = make([]Riemann, len(config.Conf.RiemannAddrs))
 	for idx, addr := range config.Conf.RiemannAddrs {
-		addr1 := addr //a very strange bug...
-		factory := func() (net.Conn, error) { return net.Dial("tcp", addr1) }
 		riemann[idx].idx = idx
 
 		riemann[idx].msgQueue = make(chan Msg, 5000)
 		go riemann[idx].forwardMsg()
 
-		riemann[idx].dead = false
-		riemann[idx].deadLocal = false
 		riemann[idx].failedMsgs = make(chan *proto.Msg, 1000)
 		riemann[idx].count = 0
-		riemann[idx].idx = idx
+		riemann[idx].dead = false
+		riemann[idx].deadLocal = false
 		go riemann[idx].updateStatus()
 
 		var err error
-		riemann[idx].pool, err = pool.NewChannelPool(10, 1000, factory)
+		addr1 := addr //a very strange bug...
+		factory := func() (net.Conn, error) { return net.Dial("tcp", addr1) }
+		riemann[idx].pool, err = pool.NewChannelPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, factory)
 		if err != nil {
 			plog.Error("can not connect to riemann, addr: ", addr)
 			riemann[idx].markDead()
@@ -66,9 +62,9 @@ func init() {
 		fmt.Println("can not connect to zk, use local status")
 	}
 
-	tryCreatePath(ZK_PATH, conn)
+	tryCreatePath(config.Conf.ZkPath, conn)
 
-	snapshots, errors := watch(conn, ZK_PATH)
+	snapshots, errors := watch(conn, config.Conf.ZkPath)
 	go func() {
 		for {
 			select {
@@ -103,7 +99,7 @@ func (self *Riemann) forwardMsg() {
 		if msg.target == self.idx && self.deadLocal {
 			factory := func() (net.Conn, error) { return net.Dial("tcp", config.Conf.RiemannAddrs[self.idx]) }
 			var err error
-			self.pool, err = pool.NewChannelPool(10, 1000, factory)
+			self.pool, err = pool.NewChannelPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, factory)
 			if err == nil {
 				if ok, err := self.innerSend(msg, 1); ok && err == nil {
 					plog.Info("reconnect to idx: ", self.idx)
@@ -127,6 +123,7 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 			} else if try == trynum-1 {
 				return false, err
 			}
+			conn.Close()
 		}
 	}
 	return false, nil

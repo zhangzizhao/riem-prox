@@ -15,6 +15,9 @@ type Config struct {
 	AccessLog    string
 	ErrorLog     string
 	LocalIP      string
+	NumMaxConn   int
+	NumInitConn  int
+	ZkPath		 string
 }
 
 var Conf Config
