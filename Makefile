@@ -13,8 +13,5 @@ dep:fmt
 	go get gopkg.in/fatih/pool.v2
 
 install:dep
-	go install plog
-	go install config
-	go install router
 	go install server
 

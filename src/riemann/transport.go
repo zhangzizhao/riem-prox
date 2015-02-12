@@ -1,4 +1,4 @@
-package router
+package riemann
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"net"
 
 	pb "github.com/golang/protobuf/proto"
-	"riemann"
+	"proto"
 )
 
 type TcpTransport struct {
@@ -17,12 +17,12 @@ type TcpTransport struct {
 }
 
 type request struct {
-	message     *riemann.Msg
+	message     *proto.Msg
 	response_ch chan response
 }
 
 type response struct {
-	message *riemann.Msg
+	message *proto.Msg
 	err     error
 }
 
@@ -35,7 +35,7 @@ func NewTcpTransport(conn net.Conn) *TcpTransport {
 	return t
 }
 
-func (t *TcpTransport) SendRecv(message *riemann.Msg) (*riemann.Msg, error) {
+func (t *TcpTransport) SendRecv(message *proto.Msg) (*proto.Msg, error) {
 	response_ch := make(chan response)
 	t.requestQueue <- request{message, response_ch}
 	r := <-response_ch
@@ -62,8 +62,8 @@ func (t *TcpTransport) runRequestQueue() {
 	}
 }
 
-func (t *TcpTransport) execRequest(message *riemann.Msg) (*riemann.Msg, error) {
-	msg := &riemann.Msg{}
+func (t *TcpTransport) execRequest(message *proto.Msg) (*proto.Msg, error) {
+	msg := &proto.Msg{}
 	data, err := pb.Marshal(message)
 	if err != nil {
 		return msg, err
