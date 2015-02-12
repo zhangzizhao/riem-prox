@@ -11,9 +11,12 @@ import (
 )
 
 func main() {
-	fmt.Println("started protobuf server at ", config.Conf.Listen)
 
-	listener, _ := net.Listen("tcp", config.Conf.Listen)
+	listener, err := net.Listen("tcp", config.Conf.Listen)
+	if err != nil {
+		fmt.Println("start failed: ", err)
+	}
+	fmt.Println("started protobuf server at ", config.Conf.Listen)
 	for {
 		if conn, err := listener.Accept(); err == nil {
 			go handle(conn)
