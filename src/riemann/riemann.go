@@ -71,7 +71,7 @@ func init() {
 			case snapshot := <-snapshots:
 				updateRiemannStatus(snapshot)
 			case err := <-errors:
-				panic(err)
+				plog.Error("watch zk failed: ", err)
 			}
 		}
 	}()
@@ -95,8 +95,7 @@ func (self *Riemann) forwardMsg() {
 				plog.Warning("forward msg failed, err: ", err)
 			}
 			msg.used |= (1 << uint(self.idx))
-		}
-		if msg.target == self.idx && self.deadLocal {
+		} else if msg.target == self.idx && self.deadLocal {
 			factory := func() (net.Conn, error) { return net.Dial("tcp", config.Conf.RiemannAddrs[self.idx]) }
 			var err error
 			self.pool, err = pool.NewChannelPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, factory)

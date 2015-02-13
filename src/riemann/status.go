@@ -14,7 +14,7 @@ func (self *Riemann) updateStatus() {
 		select {
 		case <-self.failedMsgs:
 			self.count += 1
-			if self.count > 5 {
+			if self.count > config.Conf.MaxFailure {
 				self.markDead()
 				self.count = 0
 			}
@@ -41,7 +41,6 @@ func (self *Riemann) markAlive() {
 	if !self.deadLocal {
 		return
 	}
-	self.dead = false
 	self.deadLocal = false
 	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
 	defer conn.Close()
