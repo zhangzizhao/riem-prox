@@ -2,16 +2,15 @@ package riemann
 
 import (
 	"config"
+	"errors"
 	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
-	"pool"
 	"hash/fnv"
 	"plog"
+	"pool"
 	"proto"
 	"time"
-	"errors"
 )
-
 
 type Msg struct {
 	msg    *proto.Msg
@@ -94,13 +93,9 @@ func (self *Riemann) forwardMsg() {
 			}
 			msg.used |= (1 << uint(self.idx))
 		} else if msg.target == self.idx && self.deadLocal {
-			var err error
-			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
-			if err == nil {
-				if ok, err := self.innerSend(msg, 1); ok && err == nil {
-					plog.Info("reconnect to idx: ", self.idx)
-					self.markAlive()
-				}
+			if ok, err := self.innerSend(msg, 1); ok && err == nil {
+				plog.Info("reconnect to idx: ", self.idx)
+				self.markAlive()
 			}
 		}
 		if !success {
@@ -111,16 +106,25 @@ func (self *Riemann) forwardMsg() {
 
 func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 	for try := 0; try < trynum; try += 1 {
+		if self.pool == nil {
+			var err error
+			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
+			if err != nil {
+				return false, errors.New(fmt.Sprintf("can not connect to riemann %s", self.idx))
+			}
+		}
 		if conn, err := self.pool.Get(); err == nil {
 			tcp := NewTcpTransport(conn.Conn)
 			if _, err := tcp.SendRecv(msg.msg); err == nil {
 				conn.Release()
 				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx, " try: ", try)
 				return true, nil
-			} else if try == trynum-1 {
+			} else {
 				conn.Close()
-				self.pool.Close(conn)
-				return false, err
+				if try == trynum-1 {
+					self.pool.Close(conn)
+					return false, err
+				}
 			}
 		}
 	}

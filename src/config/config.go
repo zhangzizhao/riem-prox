@@ -17,8 +17,8 @@ type Config struct {
 	LocalIP      string
 	NumMaxConn   int
 	NumInitConn  int
-	ZkPath		 string
-	MaxFailure	 int
+	ZkPath       string
+	MaxFailure   int
 }
 
 var Conf Config

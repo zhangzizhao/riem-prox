@@ -17,11 +17,3 @@ func (self *poolConn) Release() {
 func (self *poolConn) Close() {
 	self.Conn.Close()
 }
-
-func (self *poolConn) Read(b []byte) (int, error) {
-	return self.Conn.Read(b)
-}
-
-func (self *poolConn) Write(b []byte) (int, error) {
-	return self.Conn.Write(b)
-}

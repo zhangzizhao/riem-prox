@@ -17,7 +17,7 @@ type Pool struct {
 
 func NewPool(initNum, maxCap int, addrs []string) (*Pool, error) {
 	if initNum < 0 || maxCap <= 0 || initNum > maxCap {
-		return nil, errors.New("invalid capacoty settings")
+		return nil, errors.New("invalid capacity settings")
 	}
 	p := &Pool{addrs: addrs, conns: make([]chan net.Conn, len(addrs))}
 	for i := 0; i < len(addrs); i++ {
@@ -51,7 +51,6 @@ func (self *Pool) Get() (poolConn, error) {
 	}
 	return poolConn{}, errors.New("can not connect to all addrs")
 }
-
 
 func (self *Pool) put(conn *poolConn) {
 	self.mu.Lock()
