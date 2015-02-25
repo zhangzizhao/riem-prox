@@ -21,7 +21,7 @@ func main() {
 		if conn, err := listener.Accept(); err == nil {
 			go handle(conn)
 		} else {
-			plog.Warning("accept error: ", err)
+			plog.Error("listener.Accept error: ", err)
 		}
 	}
 }
@@ -31,7 +31,7 @@ func handle(conn net.Conn) {
 	data := make([]byte, 4096)
 	n, err := conn.Read(data)
 	if err != nil {
-		plog.Error("read from conn failed:", err)
+		plog.Error("read from conn failed: ", err)
 		return
 	}
 	message := new(proto.Msg)

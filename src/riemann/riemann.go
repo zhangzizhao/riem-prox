@@ -4,12 +4,12 @@ import (
 	"config"
 	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
-	pool "gopkg.in/fatih/pool.v2"
+	"pool"
 	"hash/fnv"
-	"net"
 	"plog"
 	"proto"
 	"time"
+	"errors"
 )
 
 
@@ -22,7 +22,7 @@ type Msg struct {
 
 type Riemann struct {
 	idx      int
-	pool     pool.Pool
+	pool     *pool.Pool
 	msgQueue chan Msg
 
 	failedMsgs chan *proto.Msg
@@ -48,9 +48,7 @@ func init() {
 		go riemann[idx].updateStatus()
 
 		var err error
-		addr1 := addr //a very strange bug...
-		factory := func() (net.Conn, error) { return net.Dial("tcp", addr1) }
-		riemann[idx].pool, err = pool.NewChannelPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, factory)
+		riemann[idx].pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{addr})
 		if err != nil {
 			plog.Error("can not connect to riemann, addr: ", addr)
 			riemann[idx].markDead()
@@ -96,9 +94,8 @@ func (self *Riemann) forwardMsg() {
 			}
 			msg.used |= (1 << uint(self.idx))
 		} else if msg.target == self.idx && self.deadLocal {
-			factory := func() (net.Conn, error) { return net.Dial("tcp", config.Conf.RiemannAddrs[self.idx]) }
 			var err error
-			self.pool, err = pool.NewChannelPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, factory)
+			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
 			if err == nil {
 				if ok, err := self.innerSend(msg, 1); ok && err == nil {
 					plog.Info("reconnect to idx: ", self.idx)
@@ -115,17 +112,19 @@ func (self *Riemann) forwardMsg() {
 func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 	for try := 0; try < trynum; try += 1 {
 		if conn, err := self.pool.Get(); err == nil {
-			tcp := NewTcpTransport(conn)
+			tcp := NewTcpTransport(conn.Conn)
 			if _, err := tcp.SendRecv(msg.msg); err == nil {
+				conn.Release()
 				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx, " try: ", try)
 				return true, nil
 			} else if try == trynum-1 {
+				conn.Close()
+				self.pool.Close(conn)
 				return false, err
 			}
-			conn.Close()
 		}
 	}
-	return false, nil
+	return false, errors.New("send msg failed")
 }
 
 func chooseHost(s string) int {
