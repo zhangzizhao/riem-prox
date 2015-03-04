@@ -94,6 +94,7 @@ func (self *Riemann) forwardMsg() {
 			msg.used |= (1 << uint(self.idx))
 		} else if msg.target == self.idx && self.deadLocal {
 			if ok, err := self.innerSend(msg, 1); ok && err == nil {
+				success = true
 				plog.Info("reconnect to idx: ", self.idx)
 				self.markAlive()
 			}
