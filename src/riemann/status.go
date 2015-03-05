@@ -109,7 +109,10 @@ func updateRiemannStatus(children []string) {
 		}
 	}
 	if aliveCount == 0 {
-		panic("all riemann dead")
+		plog.Error("all riemann dead")
+		allDead = true
+	} else {
+		allDead = false
 	}
 	plog.Info("riemann status updated, dead riemanns: ", dead)
 }

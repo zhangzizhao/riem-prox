@@ -16,7 +16,6 @@ type Msg struct {
 	msg    *proto.Msg
 	target int
 	count  int
-	used   int
 }
 
 type Riemann struct {
@@ -31,9 +30,11 @@ type Riemann struct {
 }
 
 var riemann []Riemann
+var allDead bool
 
 func init() {
 	riemann = make([]Riemann, len(config.Conf.RiemannAddrs))
+	allDead = false
 	for idx, addr := range config.Conf.RiemannAddrs {
 		riemann[idx].idx = idx
 
@@ -77,22 +78,16 @@ func init() {
 func (self *Riemann) forwardMsg() {
 	for {
 		msg := <-self.msgQueue
-		if msg.count > len(config.Conf.RiemannAddrs) {
-			plog.Error("forward msg failed, msg.target: ", msg.target, " msg.count: ", msg.count, " idx:", self.idx)
-			continue
-		}
-		msg.count += 1
 
 		success := false
-		if !self.dead && (msg.used&(1<<uint(self.idx))) == 0 {
+		if !self.dead {
 			var err error
 			success, err = self.innerSend(msg, 2)
-			if !success {
+			if !success && msg.count <= len(config.Conf.RiemannAddrs) {
 				self.failedMsgs <- msg.msg
 				plog.Warning("forward msg failed, err: ", err)
 			}
-			msg.used |= (1 << uint(self.idx))
-		} else if msg.target == self.idx && self.deadLocal {
+		} else if self.deadLocal {
 			if ok, err := self.innerSend(msg, 1); ok && err == nil {
 				success = true
 				plog.Info("reconnect to idx: ", self.idx)
@@ -100,6 +95,7 @@ func (self *Riemann) forwardMsg() {
 			}
 		}
 		if !success {
+			msg.count++
 			riemann[(self.idx+1)%len(riemann)].msgQueue <- msg
 		}
 	}
@@ -139,7 +135,11 @@ func chooseHost(s string) int {
 	return int(i)
 }
 
-func Send(msg *proto.Msg) {
+func Send(msg *proto.Msg) error {
+	if allDead {
+		return errors.New("Riemanns are dead")
+	}
 	idx := chooseHost(*msg.Events[0].Service)
-	riemann[idx].msgQueue <- Msg{msg, idx, 1, 0}
+	riemann[idx].msgQueue <- Msg{msg, idx, 1}
+	return nil
 }

@@ -3,11 +3,11 @@ package main
 import (
 	"config"
 	"fmt"
-	pb "github.com/golang/protobuf/proto"
 	"net"
 	"plog"
 	"proto"
 	"riemann"
+	"utils"
 )
 
 func main() {
@@ -27,24 +27,30 @@ func main() {
 }
 
 func handle(conn net.Conn) {
-	defer conn.Close()
-	data := make([]byte, 4096)
-	n, err := conn.Read(data)
-	if err != nil {
-		plog.Error("read from conn failed: ", err)
-		return
-	}
-	message := new(proto.Msg)
-	pb.Unmarshal(data[0:n], message)
-
-	for _, event := range message.Events {
-		msg := new(proto.Msg)
-		msg.Ok = message.Ok
-		msg.Error = message.Error
-		msg.States = message.States
-		msg.Query = message.Query
-		msg.XXX_unrecognized = message.XXX_unrecognized
-		msg.Events = append(msg.Events, event)
-		riemann.Send(msg)
+	for {
+		success := true
+		if message, err := utils.Read(conn); err != nil {
+			conn.Close()
+			return
+		} else {
+			for _, event := range message.Events {
+				msg := new(proto.Msg)
+				msg.Ok = message.Ok
+				msg.Error = message.Error
+				msg.States = message.States
+				msg.Query = message.Query
+				msg.XXX_unrecognized = message.XXX_unrecognized
+				msg.Events = append(msg.Events, event)
+				if err := riemann.Send(msg); err != nil {
+					success = false
+					break
+				}
+			}
+		}
+		resp := &proto.Msg{}
+		resp.Ok = &success
+		if err := utils.Write(conn, resp); err != nil {
+			plog.Error("write response failed")
+		}
 	}
 }
