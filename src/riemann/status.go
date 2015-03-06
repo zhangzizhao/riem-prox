@@ -111,8 +111,18 @@ func updateRiemannStatus(children []string) {
 	if aliveCount == 0 {
 		plog.Error("all riemann dead")
 		allDead = true
+		tryCount = 0
 	} else {
 		allDead = false
 	}
-	plog.Info("riemann status updated, dead riemanns: ", dead)
+	deadRiemanns := make([]string, len(riemann))
+	aliveRiemanns := make([]string, len(riemann))
+	for i := 0; i < len(dead); i++ {
+		if dead[i] {
+			deadRiemanns = append(deadRiemanns, config.Conf.RiemannAddrs[i])
+		} else {
+			aliveRiemanns = append(aliveRiemanns, config.Conf.RiemannAddrs[i])
+		}
+	}
+	plog.Info("riemann status updated, dead riemanns: ", deadRiemanns, " alive riemanns: ", aliveRiemanns)
 }

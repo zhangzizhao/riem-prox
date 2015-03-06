@@ -31,10 +31,12 @@ type Riemann struct {
 
 var riemann []Riemann
 var allDead bool
+var tryCount int
 
 func init() {
 	riemann = make([]Riemann, len(config.Conf.RiemannAddrs))
 	allDead = false
+	tryCount = 0
 	for idx, addr := range config.Conf.RiemannAddrs {
 		riemann[idx].idx = idx
 
@@ -78,6 +80,7 @@ func init() {
 func (self *Riemann) forwardMsg() {
 	for {
 		msg := <-self.msgQueue
+		plog.Info("try to forward msg, try times: ", msg.count)
 
 		success := false
 		if !self.dead {
@@ -114,7 +117,7 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 			tcp := NewTcpTransport(conn.Conn)
 			if _, err := tcp.SendRecv(msg.msg); err == nil {
 				conn.Release()
-				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx, " try: ", try)
+				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx)
 				return true, nil
 			} else {
 				conn.Close()
@@ -136,9 +139,10 @@ func chooseHost(s string) int {
 }
 
 func Send(msg *proto.Msg) error {
-	if allDead {
+	if allDead && tryCount > 5 {
 		return errors.New("Riemanns are dead")
 	}
+	tryCount++
 	idx := chooseHost(*msg.Events[0].Service)
 	riemann[idx].msgQueue <- Msg{msg, idx, 1}
 	return nil
