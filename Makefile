@@ -12,5 +12,5 @@ dep:fmt
 	go get gopkg.in/yaml.v2
 
 install:dep
-	go install server
+	go install riemann-proxy
 

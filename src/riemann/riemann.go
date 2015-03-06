@@ -32,11 +32,21 @@ type Riemann struct {
 var riemann []Riemann
 var allDead bool
 var tryCount int
+var zkConn *zk.Conn
 
 func init() {
 	riemann = make([]Riemann, len(config.Conf.RiemannAddrs))
 	allDead = false
 	tryCount = 0
+
+	var err error
+	zkConn, _, err = zk.Connect(config.Conf.ZkAddrs, time.Second*10)
+	if err != nil {
+		fmt.Println("can not connect to zk, use local status")
+	}
+
+	tryCreatePath(config.Conf.ZkPath, zkConn)
+
 	for idx, addr := range config.Conf.RiemannAddrs {
 		riemann[idx].idx = idx
 
@@ -57,14 +67,7 @@ func init() {
 		}
 	}
 
-	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
-	if err != nil {
-		fmt.Println("can not connect to zk, use local status")
-	}
-
-	tryCreatePath(config.Conf.ZkPath, conn)
-
-	snapshots, errors := watch(conn, config.Conf.ZkPath)
+	snapshots, errors := watch(zkConn, config.Conf.ZkPath)
 	go func() {
 		for {
 			select {
@@ -98,7 +101,9 @@ func (self *Riemann) forwardMsg() {
 			}
 		}
 		if !success {
-			msg.count++
+			if msg.count < 9999 {
+				msg.count++
+			}
 			riemann[(self.idx+1)%len(riemann)].msgQueue <- msg
 		}
 	}
@@ -110,7 +115,7 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 			var err error
 			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
 			if err != nil {
-				return false, errors.New(fmt.Sprintf("can not connect to riemann %s", self.idx))
+				return false, errors.New(fmt.Sprintf("can not connect to riemann %d", self.idx))
 			}
 		}
 		if conn, err := self.pool.Get(); err == nil {

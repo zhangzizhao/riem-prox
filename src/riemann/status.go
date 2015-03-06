@@ -30,11 +30,8 @@ func (self *Riemann) markDead() {
 	}
 	self.dead = true
 	self.deadLocal = true
-	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
-	defer conn.Close()
-	if err == nil {
-		conn.Create(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(0), zk.WorldACL(zk.PermAll))
-	}
+	zkConn.Create(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(zk.FlagEphemeral), zk.WorldACL(zk.PermAll))
+
 }
 
 func (self *Riemann) markAlive() {
@@ -42,11 +39,7 @@ func (self *Riemann) markAlive() {
 		return
 	}
 	self.deadLocal = false
-	conn, _, err := zk.Connect(config.Conf.ZkAddrs, time.Second*10)
-	defer conn.Close()
-	if err == nil {
-		conn.Delete(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
-	}
+	zkConn.Delete(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
 }
 
 func watch(conn *zk.Conn, path string) (chan []string, chan error) {
@@ -93,7 +86,7 @@ func updateRiemannStatus(children []string) {
 	local := make([]bool, len(riemann))
 	for _, val := range children {
 		s := strings.Split(val, "-")
-		if idx, err := strconv.Atoi(s[len(s)-1]); err == nil {
+		if idx, err := strconv.Atoi(s[len(s)-1]); err == nil && idx >= 0 && idx < len(riemann) {
 			dead[idx] = true
 			if s[0] == config.Conf.LocalIP {
 				local[idx] = true
