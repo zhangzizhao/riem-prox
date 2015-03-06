@@ -63,6 +63,24 @@ func initLocalLog() error {
 	return nil
 }
 
+func checkAccessLog() {
+	if _, err := os.Stat(config.Conf.AccessLog); os.IsNotExist(err) {
+		if access_fd, access_err := os.OpenFile(config.Conf.AccessLog,
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); access_err == nil {
+			accesslog = log.New(access_fd, "riemann_proxy: ", _LOG_DEBUG_FLAG)
+		}
+	}
+}
+
+func checkErrorLog() {
+	if _, err := os.Stat(config.Conf.ErrorLog); os.IsNotExist(err) {
+		if error_fd, error_err := os.OpenFile(config.Conf.ErrorLog,
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); error_err == nil {
+			errorlog = log.New(error_fd, "riemann_proxy: ", _LOG_DEBUG_FLAG)
+		}
+	}
+}
+
 func localConsumeProc() {
 	defer func() {
 		recover()
@@ -71,14 +89,19 @@ func localConsumeProc() {
 	for {
 		select {
 		case msg := <-bufMap["DebugLocal"]:
+			checkAccessLog()
 			accesslog.Println(msg)
 		case msg := <-bufMap["InfoLocal"]:
+			checkAccessLog()
 			accesslog.Println(msg)
 		case msg := <-bufMap["WarningLocal"]:
+			checkErrorLog()
 			errorlog.Println(msg)
 		case msg := <-bufMap["ErrorLocal"]:
+			checkErrorLog()
 			errorlog.Println(msg)
 		case msg := <-bufMap["FatalLocal"]:
+			checkErrorLog()
 			errorlog.Println(msg)
 		}
 	}
