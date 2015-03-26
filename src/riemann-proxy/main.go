@@ -53,7 +53,7 @@ func handle(conn net.Conn) {
 		resp := &proto.Msg{}
 		resp.Ok = &success
 		if err := utils.Write(conn, resp); err != nil {
-			plog.Error("write response failed")
+			plog.Error("write response failed, err: ", err)
 		}
 	}
 }
