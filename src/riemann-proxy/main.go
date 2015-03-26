@@ -3,6 +3,7 @@ package main
 import (
 	"config"
 	"fmt"
+	"io"
 	"net"
 	"plog"
 	"proto"
@@ -30,10 +31,14 @@ func handle(conn net.Conn) {
 	for {
 		success := true
 		if message, err := utils.Read(conn); err != nil {
+			if err != io.EOF {
+				plog.Warning("utils.Read failed, err: ", err)
+				//connect reset by user?
+			}
 			conn.Close()
 			return
 		} else {
-			plog.Info("recieve new msg")
+			plog.Info("recieve a new msg")
 			for _, event := range message.Events {
 				msg := new(proto.Msg)
 				msg.Ok = message.Ok
@@ -52,7 +57,8 @@ func handle(conn net.Conn) {
 		resp := &proto.Msg{}
 		resp.Ok = &success
 		if err := utils.Write(conn, resp); err != nil {
-			plog.Error("write response failed, err: ", err)
+			plog.Warning("write response failed, err: ", err)
+			//broken pipe
 		}
 	}
 }

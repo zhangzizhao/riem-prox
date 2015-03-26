@@ -9,6 +9,7 @@ import (
 	"plog"
 	"pool"
 	"proto"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ var riemann []Riemann
 var allDead bool
 var tryCount int
 var zkConn *zk.Conn
+var mu sync.Mutex
 
 func init() {
 	riemann = make([]Riemann, len(config.Conf.RiemannAddrs))
@@ -43,9 +45,9 @@ func init() {
 	zkConn, _, err = zk.Connect(config.Conf.ZkAddrs, time.Second*10)
 	if err != nil {
 		fmt.Println("can not connect to zk, use local status")
+	} else {
+		tryCreatePath(config.Conf.ZkPath, zkConn)
 	}
-
-	tryCreatePath(config.Conf.ZkPath, zkConn)
 
 	for idx, addr := range config.Conf.RiemannAddrs {
 		riemann[idx].idx = idx
@@ -66,18 +68,19 @@ func init() {
 			riemann[idx].markDead()
 		}
 	}
-
-	snapshots, errors := watch(zkConn, config.Conf.ZkPath)
-	go func() {
-		for {
-			select {
-			case snapshot := <-snapshots:
-				updateRiemannStatus(snapshot)
-			case err := <-errors:
-				plog.Error("watch zk failed: ", err)
+	if zkConn != nil {
+		snapshots, errors := watch(zkConn, config.Conf.ZkPath)
+		go func() {
+			for {
+				select {
+				case snapshot := <-snapshots:
+					updateRiemannStatus(snapshot)
+				case err := <-errors:
+					plog.Error("watch zk failed: ", err)
+				}
 			}
-		}
-	}()
+		}()
+	}
 }
 
 func (self *Riemann) forwardMsg() {
@@ -91,7 +94,7 @@ func (self *Riemann) forwardMsg() {
 			success, err = self.innerSend(msg, 2)
 			if !success && msg.count <= len(config.Conf.RiemannAddrs) {
 				self.failedMsgs <- msg.msg
-				plog.Warning("forward msg failed, err: ", err)
+				plog.Warning("forward msg failed, err: ", err, "count: ", msg.count)
 			}
 		} else if self.deadLocal {
 			if ok, err := self.innerSend(msg, 1); ok && err == nil {
@@ -119,8 +122,9 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 			}
 		}
 		if conn, err := self.pool.Get(); err == nil {
-			tcp := NewTcpTransport(conn.Conn)
-			if _, err := tcp.SendRecv(msg.msg); err == nil {
+			tcpTrans := NewTcpTransport(conn.Conn)
+			if _, err := tcpTrans.SendRecv(msg.msg); err == nil {
+				tcpTrans.Close()
 				conn.Release()
 				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx)
 				return true, nil
@@ -131,6 +135,8 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 					return false, err
 				}
 			}
+		} else {
+			return false, err
 		}
 	}
 	return false, errors.New("send msg failed")
@@ -144,10 +150,15 @@ func chooseHost(s string) int {
 }
 
 func Send(msg *proto.Msg) error {
-	if allDead && tryCount > 5 {
-		return errors.New("Riemanns are dead")
+	if allDead {
+		mu.Lock()
+		if tryCount > 100 {
+			mu.Unlock()
+			return errors.New("all riemanns are dead")
+		}
+		tryCount++
+		mu.Unlock()
 	}
-	tryCount++
 
 	idx := chooseHost(*msg.Events[0].Service)
 	riemann[idx].msgQueue <- Msg{msg, idx, 1}

@@ -6,11 +6,8 @@ import (
 	"plog"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
-
-var mu sync.Mutex
 
 func (self *Riemann) updateStatus() {
 	for {
@@ -28,21 +25,28 @@ func (self *Riemann) updateStatus() {
 }
 
 func (self *Riemann) markDead() {
+	mu.Lock()
+	defer mu.Unlock()
 	if self.deadLocal {
 		return
 	}
 	self.dead = true
 	self.deadLocal = true
-	zkConn.Create(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(zk.FlagEphemeral), zk.WorldACL(zk.PermAll))
-
+	if zkConn != nil {
+		zkConn.Create(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), []byte(""), int32(zk.FlagEphemeral), zk.WorldACL(zk.PermAll))
+	}
 }
 
 func (self *Riemann) markAlive() {
+	mu.Lock()
+	defer mu.Unlock()
 	if !self.deadLocal {
 		return
 	}
 	self.deadLocal = false
-	zkConn.Delete(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
+	if zkConn != nil {
+		zkConn.Delete(config.Conf.ZkPath+"/"+config.Conf.LocalIP+"-"+strconv.Itoa(self.idx), -1)
+	}
 }
 
 func watch(conn *zk.Conn, path string) (chan []string, chan error) {
@@ -109,9 +113,10 @@ func updateRiemannStatus(children []string) {
 	if aliveCount == 0 {
 		plog.Error("all riemann dead")
 		allDead = true
-		tryCount = 0
 	} else {
+		tryCount = 0
 		allDead = false
+
 	}
 	deadRiemanns := make([]string, len(riemann))
 	aliveRiemanns := make([]string, len(riemann))

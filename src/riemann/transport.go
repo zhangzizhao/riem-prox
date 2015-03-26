@@ -1,14 +1,10 @@
 package riemann
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
 	"io"
 	"net"
-
-	pb "github.com/golang/protobuf/proto"
 	"proto"
+	"utils"
 )
 
 type TcpTransport struct {
@@ -44,10 +40,10 @@ func (t *TcpTransport) SendRecv(message *proto.Msg) (*proto.Msg, error) {
 
 func (t *TcpTransport) Close() error {
 	close(t.requestQueue)
-	err := t.conn.Close()
+	/*err := t.conn.Close()
 	if err != nil {
 		return err
-	}
+	}*/
 	return nil
 }
 
@@ -64,35 +60,13 @@ func (t *TcpTransport) runRequestQueue() {
 
 func (t *TcpTransport) execRequest(message *proto.Msg) (*proto.Msg, error) {
 	msg := &proto.Msg{}
-	data, err := pb.Marshal(message)
+	err := utils.Write(t.conn, message)
 	if err != nil {
 		return msg, err
 	}
-	b := new(bytes.Buffer)
-	if err = binary.Write(b, binary.BigEndian, uint32(len(data))); err != nil {
-		return msg, err
-	}
-	if _, err = t.conn.Write(b.Bytes()); err != nil {
-		return msg, err
-	}
-	if _, err = t.conn.Write(data); err != nil {
-		return msg, err
-	}
-	var header uint32
-	if err = binary.Read(t.conn, binary.BigEndian, &header); err != nil {
-		return msg, err
-	}
-	response := make([]byte, header)
-	if err = readMessages(t.conn, response); err != nil {
-		return msg, err
-	}
-	if err = pb.Unmarshal(response, msg); err != nil {
-		return msg, err
-	}
-	if msg.GetOk() != true {
-		return msg, errors.New(msg.GetError())
-	}
-	return msg, nil
+
+	msg, err = utils.Read(t.conn)
+	return msg, err
 }
 
 func readMessages(r io.Reader, p []byte) error {

@@ -38,6 +38,7 @@ func (self *Pool) Get() (poolConn, error) {
 	defer self.mu.Unlock()
 	rand.Seed(int64(time.Now().Nanosecond()))
 	idx := rand.Intn(len(self.addrs))
+	var errString string
 	for i := 0; i < len(self.addrs); i++ {
 		select {
 		case conn := <-self.conns[idx]:
@@ -45,11 +46,13 @@ func (self *Pool) Get() (poolConn, error) {
 		default:
 			if conn, err := net.Dial("tcp", self.addrs[idx]); err == nil {
 				return poolConn{conn, idx, self}, nil
+			} else {
+				errString = err.Error()
 			}
 		}
 		idx = (idx + 1) % len(self.addrs)
 	}
-	return poolConn{}, errors.New("can not connect to all addrs")
+	return poolConn{}, errors.New(errString)
 }
 
 func (self *Pool) put(conn *poolConn) {

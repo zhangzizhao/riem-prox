@@ -15,7 +15,7 @@ func dial(port string) net.Conn {
 }
 
 func run() {
-	addrs := []string{"11237", "11238", "11239"}
+	addrs := []string{"11237"}
 	conns := make([]net.Conn, len(addrs))
 	for i, addr := range addrs {
 		conns[i] = dial(addr)
