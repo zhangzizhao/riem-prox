@@ -7,7 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sync"
 )
+
+
+var mu sync.Mutex
 
 func (self *Riemann) updateStatus() {
 	for {
@@ -82,6 +86,8 @@ func tryCreatePath(path string, conn *zk.Conn) {
 
 }
 func updateRiemannStatus(children []string) {
+	mu.Lock()
+	defer mu.Unlock()
 	dead := make([]bool, len(riemann))
 	local := make([]bool, len(riemann))
 	for _, val := range children {
