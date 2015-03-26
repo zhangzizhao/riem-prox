@@ -43,10 +43,9 @@ func handle(conn net.Conn) {
 				msg.XXX_unrecognized = message.XXX_unrecognized
 				msg.Events = append(msg.Events, event)
 				if err := riemann.Send(msg); err != nil {
+					plog.Error("send failed, err: ", err)
 					success = false
 					break
-				} else {
-					plog.Error("send failed, err: ", err)
 				}
 			}
 		}
