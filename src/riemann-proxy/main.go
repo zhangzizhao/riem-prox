@@ -33,6 +33,7 @@ func handle(conn net.Conn) {
 			conn.Close()
 			return
 		} else {
+			plog.Info("recieve new msg")
 			for _, event := range message.Events {
 				msg := new(proto.Msg)
 				msg.Ok = message.Ok
@@ -44,6 +45,8 @@ func handle(conn net.Conn) {
 				if err := riemann.Send(msg); err != nil {
 					success = false
 					break
+				} else {
+					plog.Error("send failed, err: ", err)
 				}
 			}
 		}

@@ -148,7 +148,9 @@ func Send(msg *proto.Msg) error {
 		return errors.New("Riemanns are dead")
 	}
 	tryCount++
+
 	idx := chooseHost(*msg.Events[0].Service)
 	riemann[idx].msgQueue <- Msg{msg, idx, 1}
+	plog.Info("put msg into queue, idx: ", idx)
 	return nil
 }
