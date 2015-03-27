@@ -42,7 +42,7 @@ func init() {
 	tryCount = 0
 
 	var err error
-	zkConn, _, err = zk.Connect(config.Conf.ZkAddrs, time.Second*10)
+	zkConn, _, err = zk.Connect(config.Conf.ZkAddrs, time.Second*30)
 	if err != nil {
 		fmt.Println("can not connect to zk, use local status")
 	} else {
@@ -64,7 +64,7 @@ func init() {
 		var err error
 		riemann[idx].pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{addr})
 		if err != nil {
-			plog.Error("can not connect to riemann, addr: ", addr)
+			plog.Error("can not connect to riemann, addr: ", addr, "err: ", err)
 			riemann[idx].markDead()
 		}
 	}
@@ -117,8 +117,8 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 		if self.pool == nil {
 			var err error
 			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
-			if err != nil {
-				return false, errors.New(fmt.Sprintf("can not connect to riemann %d", self.idx))
+			if err != nil && !self.deadLocal {
+				return false, errors.New(fmt.Sprintf("can not connect to riemann %d, err: %s", self.idx, err.Error()))
 			}
 		}
 		if conn, err := self.pool.Get(); err == nil {

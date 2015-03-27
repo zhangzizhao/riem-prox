@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+//watch zk failed: zk: session has been expired by the server
 func (self *Riemann) updateStatus() {
 	for {
 		select {

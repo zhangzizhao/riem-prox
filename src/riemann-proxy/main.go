@@ -33,7 +33,7 @@ func handle(conn net.Conn) {
 		if message, err := utils.Read(conn); err != nil {
 			if err != io.EOF {
 				plog.Warning("utils.Read failed, err: ", err)
-				//connect reset by user?
+				//connection reset by user?
 			}
 			conn.Close()
 			return
@@ -48,7 +48,7 @@ func handle(conn net.Conn) {
 				msg.XXX_unrecognized = message.XXX_unrecognized
 				msg.Events = append(msg.Events, event)
 				if err := riemann.Send(msg); err != nil {
-					plog.Error("send failed, err: ", err)
+					plog.Error("send msg failed, err: ", err)
 					success = false
 					break
 				}
