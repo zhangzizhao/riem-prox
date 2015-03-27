@@ -52,7 +52,7 @@ func init() {
 	for idx, addr := range config.Conf.RiemannAddrs {
 		riemann[idx].idx = idx
 
-		riemann[idx].msgQueue = make(chan Msg, 5000)
+		riemann[idx].msgQueue = make(chan Msg, 1000000)
 		go riemann[idx].forwardMsg()
 
 		riemann[idx].failedMsgs = make(chan *proto.Msg, 1000)
@@ -150,8 +150,13 @@ func chooseHost(s string) int {
 }
 
 func Send(msg *proto.Msg) error {
+	idx := chooseHost(*msg.Events[0].Service)
 	if allDead {
 		mu.Lock()
+		for ; len(riemann[idx].msgQueue) > tryCount ; {
+			plog.Info("all riemanns are dead, throw away some msgs")
+			<- riemann[idx].msgQueue
+		}
 		if tryCount > 100 {
 			mu.Unlock()
 			return errors.New("all riemanns are dead")
@@ -160,7 +165,6 @@ func Send(msg *proto.Msg) error {
 		mu.Unlock()
 	}
 
-	idx := chooseHost(*msg.Events[0].Service)
 	riemann[idx].msgQueue <- Msg{msg, idx, 1}
 	plog.Info("put msg into queue, idx: ", idx)
 	return nil
