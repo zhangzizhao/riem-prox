@@ -128,7 +128,7 @@ func (self *Riemann) forwardMsg() {
 					str += " state: " + *(event.State)
 				}
 				if event.Service != nil {
-					str += " service: " + *(event.State)
+					str += " service: " + *(event.Service)
 				}
 				if event.Host != nil {
 					str += " host: " + *(event.Host)
