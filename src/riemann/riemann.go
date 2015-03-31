@@ -9,9 +9,9 @@ import (
 	"plog"
 	"pool"
 	"proto"
+	"strconv"
 	"sync"
 	"time"
-	"strconv"
 )
 
 type Msg struct {
@@ -120,8 +120,23 @@ func (self *Riemann) forwardMsg() {
 				Host             *string      `protobuf:"bytes,4,opt,name=host" json:"host,omitempty"`
 				Description      *string      `protobuf:"bytes,5,opt,name=description" json:"description,omitempty"`*/
 				event := msg.msg.Events[0]
-				plog.Error("throw away failed msgs, time: ", *(event.Time), " state: ", *(event.State),
-					" Service: ", *(event.State), " Host: ", *(event.Host), " desc: ", *(event.Description))
+				str := "throw away failed msgs,"
+				if event.Time != nil {
+					str += " time: " + strconv.FormatInt(*(event.Time), 10)
+				}
+				if event.State != nil {
+					str += " state: " + *(event.State)
+				}
+				if event.Service != nil {
+					str += " service: " + *(event.State)
+				}
+				if event.Host != nil {
+					str += " host: " + *(event.Host)
+				}
+				if event.Description != nil {
+					str += " desc: " + *(event.Description)
+				}
+				plog.Error(str)
 			}
 		}
 	}
@@ -185,5 +200,5 @@ func Send(msg *proto.Msg, recieveTime time.Time) error {
 }
 
 func calTimeInterval(t time.Time) string {
-	return strconv.FormatInt(((time.Now().UnixNano() - t.UnixNano()) / 1000), 10) + "μs"
+	return strconv.FormatInt(((time.Now().UnixNano()-t.UnixNano())/1000), 10) + "μs"
 }
