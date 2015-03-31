@@ -24,6 +24,10 @@ func run() {
 		time.Sleep(time.Millisecond * 20)
 		event := new(proto.Event)
 		event.Service = pb.String(fmt.Sprintf("service %d", i))
+		event.Time = pb.Int64(int64(123))
+		event.State = pb.String("")
+		event.Host = pb.String("")
+		event.Description= pb.String("")
 		msg := new(proto.Msg)
 		msg.Events = append(msg.Events, event)
 

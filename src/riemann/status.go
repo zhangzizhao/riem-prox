@@ -58,13 +58,12 @@ func watch(conn *zk.Conn, path string) (chan []string, chan error) {
 			snapshot, _, events, err := conn.ChildrenW(path)
 			if err != nil {
 				errors <- err
-				return
-			}
-			snapshots <- snapshot
-			evt := <-events
-			if evt.Err != nil {
-				errors <- evt.Err
-				return
+			} else {
+				snapshots <- snapshot
+				evt := <-events
+				if evt.Err != nil {
+					errors <- evt.Err
+				}
 			}
 		}
 	}()

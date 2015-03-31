@@ -8,6 +8,7 @@ import (
 	"plog"
 	"proto"
 	"riemann"
+	"time"
 	"utils"
 )
 
@@ -39,6 +40,7 @@ func handle(conn net.Conn) {
 			return
 		} else {
 			plog.Info("recieve a new msg")
+			t := time.Now()
 			for _, event := range message.Events {
 				msg := new(proto.Msg)
 				msg.Ok = message.Ok
@@ -47,7 +49,7 @@ func handle(conn net.Conn) {
 				msg.Query = message.Query
 				msg.XXX_unrecognized = message.XXX_unrecognized
 				msg.Events = append(msg.Events, event)
-				if err := riemann.Send(msg); err != nil {
+				if err := riemann.Send(msg, t); err != nil {
 					plog.Error("send msg failed, err: ", err)
 					success = false
 					break

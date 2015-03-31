@@ -11,12 +11,14 @@ import (
 	"proto"
 	"sync"
 	"time"
+	"strconv"
 )
 
 type Msg struct {
-	msg    *proto.Msg
-	target int
-	count  int
+	msg         *proto.Msg
+	target      int
+	count       int
+	recieveTime time.Time
 }
 
 type Riemann struct {
@@ -86,15 +88,17 @@ func init() {
 func (self *Riemann) forwardMsg() {
 	for {
 		msg := <-self.msgQueue
-		plog.Info("try to forward msg, try times: ", msg.count)
-
+		//plog.Info("try to forward msg, try times: ", msg.count)
 		success := false
 		if !self.dead {
 			var err error
 			success, err = self.innerSend(msg, 2)
-			if !success && msg.count <= len(config.Conf.RiemannAddrs) {
+			if success && err == nil {
+				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx,
+					" delay: ", calTimeInterval(msg.recieveTime))
+			} else if !success && msg.count <= len(config.Conf.RiemannAddrs) {
 				self.failedMsgs <- msg.msg
-				plog.Warning("forward msg failed, err: ", err, "count: ", msg.count)
+				plog.Warning("forward msg failed, err: ", err, " count: ", msg.count)
 			}
 		} else if self.deadLocal {
 			if ok, err := self.innerSend(msg, 1); ok && err == nil {
@@ -104,10 +108,21 @@ func (self *Riemann) forwardMsg() {
 			}
 		}
 		if !success {
-			if msg.count < 9999 {
-				msg.count++
+			if allDead || msg.count < config.Conf.MaxRetry {
+				if msg.count < 9999 {
+					msg.count++
+				}
+				riemann[(self.idx+1)%len(riemann)].msgQueue <- msg
+			} else {
+				/*Time           *int64       `protobuf:"varint,1,opt,name=time" json:"time,omitempty"`
+				State            *string      `protobuf:"bytes,2,opt,name=state" json:"state,omitempty"`
+				Service          *string      `protobuf:"bytes,3,opt,name=service" json:"service,omitempty"`
+				Host             *string      `protobuf:"bytes,4,opt,name=host" json:"host,omitempty"`
+				Description      *string      `protobuf:"bytes,5,opt,name=description" json:"description,omitempty"`*/
+				event := msg.msg.Events[0]
+				plog.Error("throw away failed msgs, time: ", *(event.Time), " state: ", *(event.State),
+					" Service: ", *(event.State), " Host: ", *(event.Host), " desc: ", *(event.Description))
 			}
-			riemann[(self.idx+1)%len(riemann)].msgQueue <- msg
 		}
 	}
 }
@@ -117,7 +132,7 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 		if self.pool == nil {
 			var err error
 			self.pool, err = pool.NewPool(config.Conf.NumInitConn, config.Conf.NumMaxConn, []string{config.Conf.RiemannAddrs[self.idx]})
-			if err != nil && !self.deadLocal {
+			if err != nil {
 				return false, errors.New(fmt.Sprintf("can not connect to riemann %d, err: %s", self.idx, err.Error()))
 			}
 		}
@@ -126,7 +141,6 @@ func (self *Riemann) innerSend(msg Msg, trynum int) (bool, error) {
 			if _, err := tcpTrans.SendRecv(msg.msg); err == nil {
 				tcpTrans.Close()
 				conn.Release()
-				plog.Info("forward msg sucessfully, msg.target: ", msg.target, " idx: ", self.idx)
 				return true, nil
 			} else {
 				conn.Close()
@@ -149,13 +163,13 @@ func chooseHost(s string) int {
 	return int(i)
 }
 
-func Send(msg *proto.Msg) error {
+func Send(msg *proto.Msg, recieveTime time.Time) error {
 	idx := chooseHost(*msg.Events[0].Service)
 	if allDead {
 		mu.Lock()
-		for ; len(riemann[idx].msgQueue) > tryCount ; {
-			plog.Info("all riemanns are dead, throw away some msgs")
-			<- riemann[idx].msgQueue
+		for len(riemann[idx].msgQueue) > tryCount {
+			plog.Warning("all riemanns are dead, throw away some msgs, ")
+			<-riemann[idx].msgQueue
 		}
 		if tryCount > 100 {
 			mu.Unlock()
@@ -165,7 +179,11 @@ func Send(msg *proto.Msg) error {
 		mu.Unlock()
 	}
 
-	riemann[idx].msgQueue <- Msg{msg, idx, 1}
-	plog.Info("put msg into queue, idx: ", idx)
+	riemann[idx].msgQueue <- Msg{msg, idx, 1, recieveTime}
+	//plog.Info("put msg into queue, idx: ", idx, )
 	return nil
+}
+
+func calTimeInterval(t time.Time) string {
+	return strconv.FormatInt(((time.Now().UnixNano() - t.UnixNano()) / 1000), 10) + "μs"
 }

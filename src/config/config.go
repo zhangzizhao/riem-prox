@@ -19,6 +19,7 @@ type Config struct {
 	NumInitConn  int
 	ZkPath       string
 	MaxFailure   int
+	MaxRetry     int
 }
 
 var Conf Config
